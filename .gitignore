@@ -34,6 +34,17 @@ ToDo.info
 *.sql
 *.sqlite
 
+# bbb-specific files #
+######################
+*.fmap
+.lastproj
+.projects
+
+# misc #
+########
+*.swp
+ks.py
+
 # OS generated files #
 ######################
 .DS_Store

@@ -6,8 +6,14 @@ import pickle
 import os
 
 
+BBB_HOME = os.path.join(os.path.expanduser("~"), "bbb")
+
+if not os.path.isdir(BBB_HOME):
+    os.mkdir(BBB_HOME)
+
 PROJECT_EXT = '.fmap'
-LAST_PROJECT = '.lastproj'
+LAST_PROJECT = os.path.join(BBB_HOME, '.lastproj')
+PROJ_PROF = os.path.join(BBB_HOME, '.projprof')
 DEF_PROJECT = 'def'
 
 
@@ -17,6 +23,7 @@ def main():
     args = init()
 
     project, file_mapping = resolve_project(args.project)
+    project = os.path.basename(project)
 
     if args.deploy and args.pull:
         print("cannot pull and deploy at the same time")
@@ -68,6 +75,7 @@ def resolve_project(project):
     else:
         print("  project passed: " + project)
 
+    proj_file = os.path.join(project, project + PROJECT_EXT)
     if os.path.isfile(project + PROJECT_EXT):
         with open(project + PROJECT_EXT, 'r') as f:
             transfer_mapping = pickle.load(f)
@@ -75,14 +83,17 @@ def resolve_project(project):
     if os.path.isfile(LAST_PROJECT):
         os.remove(LAST_PROJECT)
     with open(LAST_PROJECT, 'w') as p:
-        pickle.dump(project, p)
+        pickle.dump(os.path.abspath(project), p)
 
     return project, transfer_mapping
 
 def write_project(file_mapping, project):
-    if os.path.isfile(project + PROJECT_EXT):
-        os.remove(project + PROJECT_EXT)
-    with open(project + PROJECT_EXT, 'w') as f:
+    if not os.path.isdir(project):
+        os.mkdir(project)
+    proj_file = os.path.join(project, project + PROJECT_EXT)
+    if os.path.isfile(proj_file):
+        os.remove(proj_file)
+    with open(proj_file, 'w') as f:
         pickle.dump(file_mapping, f)
 
 def track_file(file_list, trans_list, file_mapping):
