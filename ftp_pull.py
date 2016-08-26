@@ -5,7 +5,7 @@ import os
 import io
 
 
-DEFAULT_HOST = 'test1.aoins.com'
+DEFAULT_HOST = 'localhost'
 DEFAULT_USER = getpass.getuser()
 
 
