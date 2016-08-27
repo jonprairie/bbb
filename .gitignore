@@ -54,3 +54,11 @@ ks.py
 .Trashes
 ehthumbs.db
 Thumbs.db
+__pycache__
+__pycache__/*
+*.pyc
+*.*~
+*.fmap
+*.lastproj
+*.projprof
+*.swp
