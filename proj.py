@@ -38,7 +38,6 @@ class Proj:
         if host_fl is None and local_fl is None:
             raise Exception("must pass host or local file")
 
-
         if host_fl is None:
             local_fl = self.make_abs(local_fl)
             host_fl = self.local_to_host[local_fl]
