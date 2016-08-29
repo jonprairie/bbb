@@ -57,7 +57,7 @@ def ftp_init(host=DEFAULT_HOST, user=DEFAULT_USER):
     print("connecting to " + host +
           " as " + user + "...")
 
-    password = getpass.getpass() 
+    password = getpass.getpass()
 
     try:
         FTP.login(user, password)

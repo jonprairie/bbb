@@ -15,6 +15,7 @@ class Proj:
 
         self.user = user
         self.host = host
+
         self.local_to_host = dict()
         self.host_to_local = dict()
 
@@ -22,7 +23,7 @@ class Proj:
         """add tracked file"""
         if host_fl is None and local_fl is None:
             raise Exception("must pass host or local file")
-        
+
         if host_fl is None:
             host_fl = local_fl
         elif local_fl is None:
@@ -37,9 +38,8 @@ class Proj:
         if host_fl is None and local_fl is None:
             raise Exception("must pass host or local file")
 
-        local_fl = self.make_abs(local_fl)
-
         if host_fl is None:
+            local_fl = self.make_abs(local_fl)
             host_fl = self.local_to_host[local_fl]
         elif local_fl is None:
             local_fl = self.host_to_local[host_fl]
