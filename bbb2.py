@@ -22,11 +22,10 @@ DEF_SPLIT_CHAR = "!"
 
 
 def main():
-    """high-level logic controller. verifies input and directs process"""
+    """high-level logic controller. calls init to parse input, then
+    calls the returned args.func function on the parsed arguments"""
 
-    args = test_init()
-    # print(args)
-    # import pdb; pdb.set_trace()
+    args = init()
     args.func(args)
 
 def sync_pull_control(args):
