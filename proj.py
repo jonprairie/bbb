@@ -5,13 +5,14 @@ import os
 
 
 class Proj:
-    def __init__(self, name, host=None, user=None, pth=None):
+    def __init__(self, name, host=None, user=None, pth=None, auto_load=False):
         self.name = name
         if pth is not None and not os.path.isabs(pth):
             pth = os.path.abspath(pth)
         elif pth is None:
             pth = os.path.abspath(name)
         self.pth = pth
+        self.auto_load = auto_load
 
         self.user = user
         self.host = host

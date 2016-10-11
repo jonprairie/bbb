@@ -25,10 +25,12 @@ def pull(fl, t_fl, FTP):
     f = open(t_fl, 'w')
     def write_line(l):
         f.write(l + "\n")
-
+    
     try:
         ret_fl = FTP.retrlines('RETR ' + fl, write_line)
-    except Exception as e:
+    except ftplib.error_temp as e:
+        print ("  failed to retrieve file: " + e.message)
+    except ftplib.all_errors as e:
         FTP.quit()
         print("  failed to retrieve file: " + fl)
         raise e
@@ -46,12 +48,14 @@ def deploy(fl, t_fl, FTP):
         print("  " + fl + " <-- " + t_fl)
         with open(t_fl, 'rb') as f:
             FTP.storlines('STOR ' + fl, f)
+    except ftplib.error_temp as e:
+        print ("  failed to deploy file: " + e.message)
     except Exception as e:
         FTP.quit()
         print("  failed to deploy file: " + t_fl)
         raise e
 
-def ftp_init(host=DEFAULT_HOST, user=DEFAULT_USER):
+def init(host=DEFAULT_HOST, user=DEFAULT_USER):
     FTP = ftplib.FTP(host)
     # print(FTP.getwelcome())
     print("connecting to " + host +
