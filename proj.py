@@ -19,6 +19,7 @@ class Proj:
 
         self.local_to_host = dict()
         self.host_to_local = dict()
+        if self.orig_path 
 
     def add_tracker(self, host_fl=None, local_fl=None):
         """add tracked file"""
