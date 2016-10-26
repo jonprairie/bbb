@@ -21,6 +21,11 @@ class Proj:
         self.local_to_host = dict()
         self.host_to_local = dict()
 
+    def change_name(self, name):
+        """move_proj should be called after this to 
+        re-qualify all the file-mappings"""
+        self.name = name
+
     def move_proj(self, pth):
         new_pth = self.qual_path(pth)
         new_l_to_h = {
@@ -35,6 +40,7 @@ class Proj:
         }
         self.local_to_host = new_l_to_h
         self.host_to_local = new_h_to_l
+        self.pth = new_pth
 
     def extr_orig_file_name(self, fl_pth):
         if fl_pth.startswith(self.pth):
@@ -45,8 +51,6 @@ class Proj:
             raise ValueError(
                 "%s isn't qualified by %s" % (fl_pth, self.pth)
             )
-
-
 
     def qual_path(self, pth):
         if pth is not None and not os.path.isabs(pth):

@@ -26,6 +26,7 @@ def main():
     calls the returned args.func function on the parsed arguments"""
 
     args = init()
+    print(args)
     args.func(args)
 
 def sync_pull_control(args):
@@ -34,15 +35,15 @@ def sync_pull_control(args):
         FTP = ftp_wrap.init(project.host, project.user)
         sync_pull(project, FTP)
     except Exception as e:
-        print("error: could not load project")
+        print("error: could not pull project")
 
 def sync_depl_control(args):
     try:
         project = load_last_project()
         FTP = ftp_wrap.init(project.host, project.user)
-        sync_deploy(project, FTP)
+        sync_deploy(project, FTP, args.force)
     except Exception as e:
-        print("error: could not load project")
+        print("error: could not deploy project")
 
 def proj_new_control(args):
     try:
@@ -51,6 +52,35 @@ def proj_new_control(args):
         print("\ncreated new project: " + project.name)
     except Exception as e:
         print("error: could not create project")
+
+def proj_del_control(args):
+    project = args.project[0]
+    if yes_no("are you sure you want to delete this project?"):
+        print('\ndeleting %s' % project)
+        try:
+            delete_proj_src(project)
+            delete_project(project)
+        except Exception as e:
+            print("error: could not delete project")
+
+def proj_ren_control(args):
+    project = args.project[0]
+    new_proj = args.project[1]
+    try:
+        if yes_no("are you sure you want to rename this project?") \
+                and project_exists(project):
+            print('\nrenaming %s to %s' % (project, new_proj))
+            proj_obj = load_project(project)
+            old_proj_path = proj_obj.pth
+            proj_obj.change_name(new_proj)
+            proj_obj.move_proj(None)
+            save_project(proj_obj)
+            shutil.move(old_proj_path, proj_obj.pth)
+            delete_project(project)
+        else:
+            raise Exception("project doesn't exist")
+    except Exception as e:
+        print("error: could not rename project")
 
 def proj_swi_control(args):
     if project_exists(args.project[0]):
@@ -94,7 +124,7 @@ def connect_and_pull(host_fl, local_fl, FTP):
     pull_from_host(host_fl, local_fl, FTP)
     return FTP
 
-def proj_del_control(args):
+def proj_rem_control(args):
     try:
         project = load_last_project()
         print("\n" + project.name)
@@ -171,22 +201,43 @@ def switch_project(project):
         pickle.dump(project.name, f)
 
 def project_exists(project):
-    project_path = os.path.join(BBB_HOME, project + PROJECT_EXT)
-    return os.path.isfile(project_path)
+    return os.path.isfile(get_proj_path(project))
+
+def delete_project(project):
+    """deletes files project-related files, does not delete
+    src directory or files"""
+    if project_exists(project):
+        os.remove(get_proj_path(project))
+        shutil.rmtree(get_proj_dir_path(project))
+
+def delete_proj_src(project):
+    """deletes src directory and files"""
+    if project_exists(project):
+        shutil.rmtree(get_proj_src_dir_path(project))
 
 def load_project(project):
-    project_path = os.path.join(BBB_HOME, project + PROJECT_EXT)
-    with open(project_path, 'rb') as f:
+    with open(get_proj_path(project), 'rb') as f:
         ret_proj = pickle.load(f)
     return ret_proj
 
 def save_project(project):
+    # refactor to use proj_exists and get_proj_path
     if not os.path.isdir(BBB_HOME):
         build_dir(BBB_HOME)
     if os.path.isfile(os.path.join(BBB_HOME, project.name + PROJECT_EXT)):
         os.remove(os.path.join(BBB_HOME, project.name + PROJECT_EXT))
     with open(os.path.join(BBB_HOME, project.name + PROJECT_EXT), 'wb') as f:
         pickle.dump(project, f)
+
+def get_proj_path(project):
+    return os.path.join(BBB_HOME, project + PROJECT_EXT)
+
+def get_proj_dir_path(project):
+    return os.path.join(BBB_HOME, project)
+
+def get_proj_src_dir_path(project):
+    proj = load_project(project)
+    return proj.pth
 
 def get_bkup_home(project):
     return os.path.join(BBB_HOME, project.name,
@@ -212,12 +263,12 @@ def sync_pull(project, FTP):
         pull_from_host(host_fl, local_fl, FTP)
         bkup_fl(local_fl, get_bkup_path(project, host_fl))
 
-def sync_deploy(project, FTP):
+def sync_deploy(project, FTP, force):
     print("syncing files...")
     for host_fl, local_fl in project.host_to_local.items():
         bkup_fl_path = get_bkup_path(project, host_fl)
         if os.path.isfile(bkup_fl_path):
-            if not filecmp.cmp(local_fl, bkup_fl_path):
+            if force or not filecmp.cmp(local_fl, bkup_fl_path):
                 ftp_wrap.deploy(host_fl, local_fl, FTP)
                 bkup_fl(local_fl, get_bkup_path(project, host_fl))
             else:
@@ -230,6 +281,12 @@ def pull_from_host(host_fl, local_fl, FTP):
     if os.path.isfile(local_fl):
         os.remove(local_fl)
     ftp_wrap.pull(host_fl, local_fl, FTP)
+
+def yes_no(q):
+    ans = ""
+    while ans.upper() not in ['YES', 'Y', 'NO', 'N']:
+        ans = input(q + " [yes, y, no, n]: ")
+    return ans.upper() in ['YES', 'Y']
 
 def init():
     parser = argparse.ArgumentParser(
@@ -249,7 +306,7 @@ def init():
 
     proj_name_parser = argparse.ArgumentParser(add_help=False)
     proj_name_parser.add_argument('project', type=str, metavar='project',
-                                  action='store', nargs=1,
+                                  action='store', nargs="+",
                                   help='project name')
 
     # create parser for "sync" command
@@ -275,12 +332,16 @@ def init():
     proj_sub = proj_parser.add_subparsers(title="actions")
     proj_new = proj_sub.add_parser('new', parents=[proj_name_parser],
                                    help='create new project')
+    proj_del = proj_sub.add_parser('del', parents=[proj_name_parser],
+                                   help='delete project')
+    proj_ren = proj_sub.add_parser('ren', parents=[proj_name_parser],
+                                   help='rename project')
     proj_swi = proj_sub.add_parser('switch', parents=[proj_name_parser],
                                    help='switch projects')
     proj_add = proj_sub.add_parser('add', parents=[fm_parser],
                                    help='add file-mapping to current project')
-    proj_del = proj_sub.add_parser('del', parents=[fm_parser],
-                                   help='del file-mapping from current project')
+    proj_rem = proj_sub.add_parser('rem', parents=[fm_parser],
+                                   help='remove file-mapping from current project')
     proj_list = proj_sub.add_parser('list', help='list file mappings in ' +
                                     'current project')
 
@@ -297,9 +358,11 @@ def init():
     sync_deploy.set_defaults(func=sync_depl_control)
 
     proj_new.set_defaults(func=proj_new_control)
+    proj_del.set_defaults(func=proj_del_control)
+    proj_ren.set_defaults(func=proj_ren_control)
     proj_swi.set_defaults(func=proj_swi_control)
     proj_add.set_defaults(func=proj_add_control)
-    proj_del.set_defaults(func=proj_del_control)
+    proj_rem.set_defaults(func=proj_rem_control)
     proj_list.set_defaults(func=proj_list_control)
 
     conf_conn.set_defaults(func=conf_conn_control)
