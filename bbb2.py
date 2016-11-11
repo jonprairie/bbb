@@ -26,7 +26,6 @@ def main():
     calls the returned args.func function on the parsed arguments"""
 
     args = init()
-    print(args)
     args.func(args)
 
 def sync_pull_control(args):
