@@ -1,5 +1,6 @@
 """
 byebyebye - maintain two directories in sync (shallow).
+TODO: clean up too-general exceptions
 """
 import argparse
 import shutil
@@ -43,6 +44,20 @@ def sync_depl_control(args):
         sync_deploy(project, FTP, args.force)
     except Exception as e:
         print("error: could not deploy project")
+
+def sync_stgd_control(args):
+    try:
+        project = load_last_project()
+    except Exception as e:
+        print("error:could not load project")
+
+    chg_fls, ident_fls = test_proj_for_changes(project)
+
+    print("\n"+project.name)
+    for fl in chg_fls:
+        print("  changes detected in: " + fl)
+    for fl in ident_fls:
+        print("  no changes found in: " + fl)
 
 def proj_new_control(args):
     try:
@@ -263,6 +278,7 @@ def sync_pull(project, FTP):
         bkup_fl(local_fl, get_bkup_path(project, host_fl))
 
 def sync_deploy(project, FTP, force):
+    "TODO: should reimplement this using test_proj_for_changes()"
     print("syncing files...")
     for host_fl, local_fl in project.host_to_local.items():
         bkup_fl_path = get_bkup_path(project, host_fl)
@@ -275,6 +291,20 @@ def sync_deploy(project, FTP, force):
         else:
             ftp_wrap.deploy(host_fl, local_fl, FTP)
             bkup_fl(local_fl, get_bkup_path(project, host_fl))
+
+def test_proj_for_changes(project):
+    changed_files = []
+    ident_files = []
+    for host_fl, local_fl in project.host_to_local.items():
+        bkup_fl_path = get_bkup_path(project, host_fl)
+        if os.path.isfile(bkup_fl_path):
+            if not filecmp.cmp(local_fl, bkup_fl_path):
+                changed_files.append(local_fl)
+            else:
+                ident_files.append(local_fl)
+        else:
+            changed_files.append(local_fl)
+    return changed_files, ident_files
 
 def pull_from_host(host_fl, local_fl, FTP):
     if os.path.isfile(local_fl):
@@ -311,12 +341,19 @@ def init():
     # create parser for "sync" command
     sync_parser = subparsers.add_parser('sync', help='sync files in project')
     sync_sub = sync_parser.add_subparsers(title="actions")
-    sync_pull = sync_sub.add_parser('pull', parents=[forceable],
-                                    help='''pull files tracked in current
-                                            project from the host''')
-    sync_deploy = sync_sub.add_parser('deploy', parents=[forceable],
-                                      help='''deploy files tracked in current
-                                              project to the host''')
+    sync_pull = sync_sub.add_parser(
+        'pull', 
+        parents=[forceable],
+        help="pull all files tracked in current project from host"
+    )
+    sync_deploy = sync_sub.add_parser(
+        'deploy', 
+        parents=[forceable],
+        help="deploy changed files tracked in current project to host"
+    )
+    sync_staged   = sync_sub.add_parser(
+        'staged', help="list files that have unsynchronized changes"
+    )
                                     
     # create parser for "ftp" command
     ftp_parser = subparsers.add_parser('ftp', help='ftp files to/from host')
@@ -355,6 +392,7 @@ def init():
 
     sync_pull.set_defaults(func=sync_pull_control)
     sync_deploy.set_defaults(func=sync_depl_control)
+    sync_staged.set_defaults(func=sync_stgd_control)
 
     proj_new.set_defaults(func=proj_new_control)
     proj_del.set_defaults(func=proj_del_control)
