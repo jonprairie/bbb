@@ -1,2 +1,2 @@
 @echo off
-python %USERPROFILE%/Documents/src/byebyebye/bbb2.py %*
+python -m %USERPROFILE%/Documents/src/byebyebye/bbb2.py %*

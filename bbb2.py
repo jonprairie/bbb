@@ -5,11 +5,20 @@ TODO: clean up too-general exceptions
 import argparse
 import shutil
 import filecmp
+import difflib
 import pickle
+import sys
+import os
 import ftp_wrap
 import proj
-import os
 
+# try importing module for colored terminal output
+try:
+    import colorama
+    colorama.init()
+    colors_available = True
+except ImportError:
+    colors_available = False
 
 BBB_HOME     = os.path.join(os.path.expanduser('~'), 'bbb')
 
@@ -46,18 +55,47 @@ def sync_depl_control(args):
         print("error: could not deploy project")
 
 def sync_stgd_control(args):
+    #TODO: extract color formatting logic
     try:
         project = load_last_project()
     except Exception as e:
+        print(e)
         print("error:could not load project")
+        sys.exit(1)
 
     chg_fls, ident_fls = test_proj_for_changes(project)
 
     print("\n"+project.name)
     for fl in chg_fls:
-        print("  changes detected in: " + fl)
+        chg_str = "changes detected in: " + fl
+        if colors_available:
+            chg_str = colorama.Fore.GREEN + chg_str + colorama.Style.RESET_ALL
+        chg_str = "  " + chg_str
+        print(chg_str)
+        if args.verbose:
+            bkup_fl = get_bkup_path(project, fl)
+            diff = diff_files(bkup_fl, fl)
+            if colors_available:
+                diff_colors = []
+                for line in diff:
+                    if len(line) >= 3 and line[0:3] in ['---', '***']:
+                        line = colorama.Style.BRIGHT + colorama.Fore.BLACK + line + colorama.Style.RESET_ALL
+                    elif line[0] == '+' and (len(line) == 1 or line[1] == ' '):
+                        line = colorama.Fore.GREEN + line + colorama.Style.RESET_ALL
+                    elif line[0] == '-' and (len(line) == 1 or line[1] == ' '):
+                        line = colorama.Fore.RED + line + colorama.Style.RESET_ALL
+                    elif line[0] == '!' and (len(line) == 1 or line[1] == ' '):
+                        # line = colorama.Style.BRIGHT + colorama.Fore.BLUE + line + colorama.Style.RESET_ALL
+                        line = colorama.Fore.MAGENTA + line + colorama.Style.RESET_ALL
+                    diff_colors.append(line)
+                diff = diff_colors
+            print("".join(list(map(lambda x: "     |"+x, diff))), end="")
     for fl in ident_fls:
-        print("  no changes found in: " + fl)
+        ident_str = "no changes found in : " + fl
+        if colors_available:
+            ident_str = colorama.Fore.RED + ident_str + colorama.Style.RESET_ALL
+        ident_str = "  " + ident_str
+        print(ident_str)
 
 def proj_new_control(args):
     try:
@@ -254,12 +292,28 @@ def get_proj_src_dir_path(project):
     return proj.pth
 
 def get_bkup_home(project):
-    return os.path.join(BBB_HOME, project.name,
-                        BKUP_EXT)
+    return os.path.join(BBB_HOME, project.name, BKUP_EXT)
+
+def get_project_relative_path(project, fl_path, path_stack=list()[:]):
+    if os.path.split(fl_path)[0] == "":
+        return fl_path
+    elif os.path.splitdrive(fl_path)[1] in ["", "/"]:
+        return os.path.join(*path_stack)
+    elif os.path.split(fl_path)[1] == project.name:
+        return os.path.join(*path_stack)
+    else:
+        root, leaf = os.path.split(fl_path)
+        fl_path = root
+        path_stack.append(leaf) 
+        return get_project_relative_path(
+            project, 
+            fl_path,
+            path_stack=path_stack
+        )
     
 def get_bkup_path(project, fl):
-    return os.path.join(get_bkup_home(project), fl + "." +
-                        BKUP_EXT)
+    fl_path = get_project_relative_path(project, fl)
+    return os.path.join(get_bkup_home(project), fl_path + "." + BKUP_EXT)
 
 def bkup_fl(source_fl, target_fl):
     if not os.path.isdir(os.path.dirname(target_fl)):
@@ -306,6 +360,19 @@ def test_proj_for_changes(project):
             changed_files.append(local_fl)
     return changed_files, ident_files
 
+def diff_files(file_1, file_2):
+    with open(file_1, encoding='utf-8') as f_1, \
+         open(file_2, encoding='utf-8') as f_2:
+        diff_list = list(
+            difflib.context_diff(
+                f_1.readlines(), 
+                f_2.readlines(),
+                fromfile=os.path.split(file_1)[1],
+                tofile=os.path.split(file_2)[1]
+            )
+        )
+    return diff_list
+
 def pull_from_host(host_fl, local_fl, FTP):
     if os.path.isfile(local_fl):
         os.remove(local_fl)
@@ -326,6 +393,12 @@ def init():
     forceable = argparse.ArgumentParser(add_help=False)
     forceable.add_argument('-f', '--force', action='store_true',
                            help='force action and ignore warnings')
+
+    verboseable = argparse.ArgumentParser(add_help=False)
+    verboseable.add_argument(
+        '-v', '--verbose', action='store_true',
+        help='print verbose output'
+    )
 
     fm_parser = argparse.ArgumentParser(add_help=False)
     fm_parser.add_argument('file_mappings', type=str, metavar='file_map',
@@ -352,7 +425,8 @@ def init():
         help="deploy changed files tracked in current project to host"
     )
     sync_staged   = sync_sub.add_parser(
-        'staged', help="list files that have unsynchronized changes"
+        'staged', parents=[verboseable],
+        help="list files that have unsynchronized changes"
     )
                                     
     # create parser for "ftp" command
