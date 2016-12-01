@@ -73,7 +73,7 @@ def sync_stgd_control(args):
         chg_str = "  " + chg_str
         print(chg_str)
         if args.verbose:
-            bkup_fl = get_bkup_path(project, fl)
+            bkup_fl = get_bkup_path(project, project.local_to_host[fl])
             diff = diff_files(bkup_fl, fl)
             if colors_available:
                 diff_colors = []
