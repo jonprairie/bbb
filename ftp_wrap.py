@@ -55,13 +55,13 @@ def deploy(fl, t_fl, FTP):
         print("  failed to deploy file: " + t_fl)
         raise e
 
-def init(host=DEFAULT_HOST, user=DEFAULT_USER):
+def init(host=DEFAULT_HOST, user=DEFAULT_USER, passw=None):
     FTP = ftplib.FTP(host)
     # print(FTP.getwelcome())
-    print("connecting to " + host +
+    print("\nconnecting to " + host +
           " as " + user + "...")
 
-    password = getpass.getpass()
+    password = passw or getpass.getpass()
 
     try:
         FTP.login(user, password)

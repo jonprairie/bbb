@@ -20,7 +20,8 @@ try:
 except ImportError:
     colors_available = False
 
-BBB_HOME     = os.path.join(os.path.expanduser('~'), 'bbb')
+# BBB_HOME     = os.path.join(os.path.expanduser('~'), 'bbb')
+BBB_HOME     = os.path.join(os.environ['USERPROFILE'], 'bbb')
 
 DEF_PROJECT  = 'def'
 PROJECT_EXT  = '.proj'
@@ -32,11 +33,12 @@ DEF_SPLIT_CHAR = "!"
 
 
 def main():
-    """high-level logic controller. calls init to parse input, then
+    """high-level logic controller. calls init to parse command-line input, then
     calls the returned args.func function on the parsed arguments"""
 
     args = init()
     args.func(args)
+
 
 def sync_pull_control(args):
     try:
@@ -46,6 +48,57 @@ def sync_pull_control(args):
     except Exception as e:
         print("error: could not pull project")
 
+
+def sync_pull_list_control(args):
+    try:
+        project = load_last_project()
+        k = list(project.host_to_local.keys())
+        pull_list = []
+
+        for n in range(len(k)):
+            pull_list.append((
+                n,
+                k[n],
+                project.host_to_local[k[n]]
+            ))
+
+        print("\nfile links in project %s:" % project.name)
+
+        for line in pull_list:
+            print("  %d: %s --> %s" % line)
+
+        selection = input(
+            "\ninput comma-separated list of integer keys to be pulled from host:\n--> "
+        )
+
+        sel_list = list(
+            filter(
+                lambda x: x and int(x) not in k,
+                ",".join(selection.split(" ")).split(",")
+            )
+        )
+
+        chosen_list = list(map(
+            lambda x: pull_list[int(x)],
+            sel_list
+        ))
+
+        yes_no_str = "\nplease confirm, pull the following files from host and overwrite local versions?" 
+        yes_no_list = ["\n  %d: %s --> %s" % (n, h, l) for n, h, l in chosen_list]
+
+        if yes_no(yes_no_str + "".join(yes_no_list) + "\n--> "):
+            FTP = ftp_wrap.init(project.host, project.user)
+            for _, host_fl, local_fl in chosen_list:
+                pass
+                pull_from_host(host_fl, local_fl, FTP)
+                bkup_fl(local_fl, get_bkup_path(project, host_fl))
+        else:
+            print("\ncancelling...")
+    except Exception as e:
+        print("error: could not deploy project")
+        print(str(e))
+
+
 def sync_depl_control(args):
     try:
         project = load_last_project()
@@ -54,8 +107,58 @@ def sync_depl_control(args):
     except Exception as e:
         print("error: could not deploy project")
 
+
+def sync_depl_list_control(args):
+    try:
+        project = load_last_project()
+        k = list(project.host_to_local.keys())
+        depl_list = []
+
+        for n in range(len(k)):
+            depl_list.append((
+                n,
+                k[n],
+                project.host_to_local[k[n]]
+            ))
+
+        print("\nfile links in project %s:" % project.name)
+
+        for line in depl_list:
+            print("  %d: %s <-- %s" % line)
+
+        selection = input(
+            "\ninput comma-separated list of integer keys to be deployed to host:\n--> "
+        )
+
+        sel_list = list(
+            filter(
+                lambda x: x and int(x) not in k,
+                ",".join(selection.split(" ")).split(",")
+            )
+        )
+
+        chosen_list = list(map(
+            lambda x: depl_list[int(x)],
+            sel_list
+        ))
+
+        yes_no_str = "\nplease confirm, deploy the following files to host and overwrite remote versions?" 
+        yes_no_list = ["\n  %d: %s <-- %s" % (n, h, l) for n, h, l in chosen_list]
+
+        if yes_no(yes_no_str + "".join(yes_no_list) + "\n--> "):
+            FTP = ftp_wrap.init(project.host, project.user)
+            for _, host_fl, local_fl in chosen_list:
+                ftp_wrap.deploy(host_fl, local_fl, FTP)
+                bkup_fl(local_fl, get_bkup_path(project, host_fl))
+        else:
+            print("\ncancelling...")
+    except Exception as e:
+        print("error: could not deploy project")
+        print(str(e))
+
+
 def sync_stgd_control(args):
-    #TODO: extract color formatting logic
+    # TODO: extract color formatting logic
     try:
         project = load_last_project()
     except Exception as e:
@@ -187,7 +290,7 @@ def proj_rem_control(args):
         save_project(project)
     except Exception as e:
         print("error: could not load project")
-        
+
 def proj_list_control(args):
     try:
         project = load_last_project()
@@ -304,13 +407,13 @@ def get_project_relative_path(project, fl_path, path_stack=list()[:]):
     else:
         root, leaf = os.path.split(fl_path)
         fl_path = root
-        path_stack.append(leaf) 
+        path_stack.append(leaf)
         return get_project_relative_path(
-            project, 
+            project,
             fl_path,
             path_stack=path_stack
         )
-    
+
 def get_bkup_path(project, fl):
     fl_path = get_project_relative_path(project, fl)
     return os.path.join(get_bkup_home(project), fl_path + "." + BKUP_EXT)
@@ -365,13 +468,14 @@ def diff_files(file_1, file_2):
          open(file_2, encoding='utf-8') as f_2:
         diff_list = list(
             difflib.context_diff(
-                f_1.readlines(), 
+                f_1.readlines(),
                 f_2.readlines(),
                 fromfile=os.path.split(file_1)[1],
                 tofile=os.path.split(file_2)[1]
             )
         )
     return diff_list
+
 
 def pull_from_host(host_fl, local_fl, FTP):
     if os.path.isfile(local_fl):
@@ -415,21 +519,32 @@ def init():
     sync_parser = subparsers.add_parser('sync', help='sync files in project')
     sync_sub = sync_parser.add_subparsers(title="actions")
     sync_pull = sync_sub.add_parser(
-        'pull', 
+        'pull',
         parents=[forceable],
         help="pull all files tracked in current project from host"
     )
+    sync_pull_list = sync_sub.add_parser(
+        'selp',
+        parents=[forceable],
+        help="select list of files to pull from host"
+    )
     sync_deploy = sync_sub.add_parser(
-        'deploy', 
+        'deploy',
         parents=[forceable],
         help="deploy changed files tracked in current project to host"
     )
-    sync_staged   = sync_sub.add_parser(
+    sync_deploy_list = sync_sub.add_parser(
+        'seld',
+        parents=[forceable],
+        help="select list of files to deploy to host"
+    )
+    sync_staged = sync_sub.add_parser(
         'staged', parents=[verboseable],
         help="list files that have unsynchronized changes"
     )
-                                    
+
     # create parser for "ftp" command
+    # not currently working, needs to be tied in
     ftp_parser = subparsers.add_parser('ftp', help='ftp files to/from host')
     ftp_sub = ftp_parser.add_subparsers(title="actions")
     ftp_pull = ftp_sub.add_parser('pull', parents=[fm_parser, forceable],
@@ -455,7 +570,7 @@ def init():
     proj_list = proj_sub.add_parser('list', help='list file mappings in ' +
                                     'current project')
 
-    #create parser for "conf" command
+    # create parser for "conf" command
     conf_parser = subparsers.add_parser('conf', help='manage configuration')
     conf_sub = conf_parser.add_subparsers(title="actions")
     conf_conn = conf_sub.add_parser('conn', help='add new connection')
@@ -465,7 +580,9 @@ def init():
                            nargs=1, help='host to connect with')
 
     sync_pull.set_defaults(func=sync_pull_control)
+    sync_pull_list.set_defaults(func=sync_pull_list_control)
     sync_deploy.set_defaults(func=sync_depl_control)
+    sync_deploy_list.set_defaults(func=sync_depl_list_control)
     sync_staged.set_defaults(func=sync_stgd_control)
 
     proj_new.set_defaults(func=proj_new_control)
@@ -480,6 +597,7 @@ def init():
 
     args = parser.parse_args()
     return args
+
 
 if __name__ == '__main__':
     main()
